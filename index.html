@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Log de Consultas - Proyecto Casa</title>
-  <!-- Usamos Bootstrap para un estilo visual atractivo -->
+  <title>Uruframe Tracking - Log de Conversaciones</title>
+  <!-- Usamos Bootstrap para un estilo atractivo -->
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <style>
     body { background-color: #f0f8ff; }
@@ -14,28 +14,42 @@
       border-radius: 8px;
       margin-bottom: 10px;
       box-shadow: 0px 1px 3px rgba(0,0,0,0.2);
+      word-wrap: break-word;
     }
-    .user { background-color: #d1ecf1; }
-    .architect { background-color: #d4edda; }
-    img { max-width: 100%; border-radius: 4px; }
+    .pregunta { background-color: #d1ecf1; }  /* Azul claro */
+    .respuesta { background-color: #d4edda; }  /* Verde claro */
+    .chat-message small { display: block; margin-top: 8px; color: #555; }
+    img { max-width: 100%; border-radius: 4px; margin-top: 8px; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1 class="text-center mb-4">Log de Consultas - Proyecto Casa</h1>
-    <!-- Área donde se mostrarán los mensajes -->
+    <h1 class="text-center mb-4">Uruframe Tracking - Log de Conversaciones</h1>
+    <!-- Área donde se muestran los mensajes -->
     <div id="chat-log" class="mb-4"></div>
     
-    <!-- Formulario para enviar consulta -->
+    <!-- Formulario para enviar mensaje -->
     <form id="chat-form">
       <div class="form-group">
-        <textarea id="message" class="form-control" placeholder="Escribe tu consulta aquí..." required></textarea>
+        <label for="name">Nombre:</label>
+        <input type="text" id="name" class="form-control" placeholder="Tu nombre" required>
+      </div>
+      <div class="form-group">
+        <label for="message-type">Tipo de mensaje:</label>
+        <select id="message-type" class="form-control">
+          <option value="pregunta">Pregunta</option>
+          <option value="respuesta">Respuesta</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="message">Mensaje:</label>
+        <textarea id="message" class="form-control" placeholder="Escribe tu mensaje aquí..." required></textarea>
       </div>
       <div class="form-group">
         <label for="image">Adjuntar imagen (opcional):</label>
         <input type="file" id="image" accept="image/*" class="form-control-file">
       </div>
-      <button type="submit" class="btn btn-primary">Enviar consulta</button>
+      <button type="submit" class="btn btn-primary">Enviar mensaje</button>
     </form>
   </div>
   
@@ -65,14 +79,20 @@
     // Función para agregar mensajes al log
     function addMessage(data) {
       var messageDiv = document.createElement('div');
-      messageDiv.classList.add('chat-message');
-      messageDiv.classList.add(data.sender === 'user' ? 'user' : 'architect');
+      // Aplica clase según el tipo de mensaje
+      if(data.role === 'pregunta'){
+        messageDiv.classList.add('chat-message', 'pregunta');
+      } else if(data.role === 'respuesta'){
+        messageDiv.classList.add('chat-message', 'respuesta');
+      }
       
-      var senderName = data.sender === 'user' ? 'Usuario' : 'Arquitecto';
-      var content = `<strong>${senderName}:</strong> ${data.text}`;
+      var timestamp = new Date(data.timestamp).toLocaleString();
+      var content = `<strong>${data.name} (${data.role.charAt(0).toUpperCase() + data.role.slice(1)}):</strong><br>
+      ${data.text}`;
       if (data.imageURL) {
         content += `<br><img src="${data.imageURL}" alt="Imagen adjunta">`;
       }
+      content += `<small>${timestamp}</small>`;
       messageDiv.innerHTML = content;
       document.getElementById('chat-log').appendChild(messageDiv);
     }
@@ -85,11 +105,14 @@
     // Manejar envío del formulario
     document.getElementById('chat-form').addEventListener('submit', function(e) {
       e.preventDefault();
-      var messageText = document.getElementById('message').value;
+      
+      var name = document.getElementById('name').value.trim();
+      var role = document.getElementById('message-type').value;
+      var messageText = document.getElementById('message').value.trim();
       var imageFile = document.getElementById('image').files[0];
       
+      // Si hay imagen, la subimos a Firebase Storage
       if (imageFile) {
-        // Subir imagen a Firebase Storage
         var storageRef = storage.ref('images/' + Date.now() + '_' + imageFile.name);
         var uploadTask = storageRef.put(imageFile);
         uploadTask.on('state_changed', 
@@ -101,7 +124,8 @@
             // Obtenemos la URL de descarga y guardamos el mensaje
             uploadTask.snapshot.ref.getDownloadURL().then(function(downloadURL) {
               chatRef.push({
-                sender: 'user',
+                name: name,
+                role: role,
                 text: messageText,
                 imageURL: downloadURL,
                 timestamp: Date.now()
@@ -112,13 +136,15 @@
       } else {
         // Guardamos el mensaje sin imagen
         chatRef.push({
-          sender: 'user',
+          name: name,
+          role: role,
           text: messageText,
           imageURL: '',
           timestamp: Date.now()
         });
       }
       
+      // Reinicia el formulario, no se pueden editar los mensajes ya enviados
       document.getElementById('chat-form').reset();
     });
   </script>
