@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log de Consultas - Proyecto Casa</title>
+  <!-- Usamos Bootstrap para un estilo visual atractivo -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <style>
+    body { background-color: #f0f8ff; }
+    .container { margin-top: 20px; }
+    .chat-message {
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      box-shadow: 0px 1px 3px rgba(0,0,0,0.2);
+    }
+    .user { background-color: #d1ecf1; }
+    .architect { background-color: #d4edda; }
+    img { max-width: 100%; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="text-center mb-4">Log de Consultas - Proyecto Casa</h1>
+    <!-- Área donde se mostrarán los mensajes -->
+    <div id="chat-log" class="mb-4"></div>
+    
+    <!-- Formulario para enviar consulta -->
+    <form id="chat-form">
+      <div class="form-group">
+        <textarea id="message" class="form-control" placeholder="Escribe tu consulta aquí..." required></textarea>
+      </div>
+      <div class="form-group">
+        <label for="image">Adjuntar imagen (opcional):</label>
+        <input type="file" id="image" accept="image/*" class="form-control-file">
+      </div>
+      <button type="submit" class="btn btn-primary">Enviar consulta</button>
+    </form>
+  </div>
+  
+  <!-- Firebase App y módulos -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+  
+  <script>
+    // Configuración de Firebase: crea un proyecto en Firebase y reemplaza los valores
+    var firebaseConfig = {
+      apiKey: "TU_API_KEY",
+      authDomain: "TU_PROYECTO.firebaseapp.com",
+      databaseURL: "https://TU_PROYECTO.firebaseio.com",
+      projectId: "TU_PROYECTO",
+      storageBucket: "TU_PROYECTO.appspot.com",
+      messagingSenderId: "TU_MESSAGING_SENDER_ID",
+      appId: "TU_APP_ID"
+    };
+    firebase.initializeApp(firebaseConfig);
+    var database = firebase.database();
+    var storage = firebase.storage();
+    
+    // Referencia a la base de datos para el log de mensajes
+    var chatRef = database.ref('chat');
+    
+    // Función para agregar mensajes al log
+    function addMessage(data) {
+      var messageDiv = document.createElement('div');
+      messageDiv.classList.add('chat-message');
+      messageDiv.classList.add(data.sender === 'user' ? 'user' : 'architect');
+      
+      var senderName = data.sender === 'user' ? 'Usuario' : 'Arquitecto';
+      var content = `<strong>${senderName}:</strong> ${data.text}`;
+      if (data.imageURL) {
+        content += `<br><img src="${data.imageURL}" alt="Imagen adjunta">`;
+      }
+      messageDiv.innerHTML = content;
+      document.getElementById('chat-log').appendChild(messageDiv);
+    }
+    
+    // Leer mensajes en tiempo real
+    chatRef.on('child_added', function(snapshot) {
+      addMessage(snapshot.val());
+    });
+    
+    // Manejar envío del formulario
+    document.getElementById('chat-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      var messageText = document.getElementById('message').value;
+      var imageFile = document.getElementById('image').files[0];
+      
+      if (imageFile) {
+        // Subir imagen a Firebase Storage
+        var storageRef = storage.ref('images/' + Date.now() + '_' + imageFile.name);
+        var uploadTask = storageRef.put(imageFile);
+        uploadTask.on('state_changed', 
+          null, 
+          function(error) {
+            console.error('Error al subir imagen:', error);
+          }, 
+          function() {
+            // Obtenemos la URL de descarga y guardamos el mensaje
+            uploadTask.snapshot.ref.getDownloadURL().then(function(downloadURL) {
+              chatRef.push({
+                sender: 'user',
+                text: messageText,
+                imageURL: downloadURL,
+                timestamp: Date.now()
+              });
+            });
+          }
+        );
+      } else {
+        // Guardamos el mensaje sin imagen
+        chatRef.push({
+          sender: 'user',
+          text: messageText,
+          imageURL: '',
+          timestamp: Date.now()
+        });
+      }
+      
+      document.getElementById('chat-form').reset();
+    });
+  </script>
+</body>
+</html>
